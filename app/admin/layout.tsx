@@ -30,33 +30,21 @@ export default function AdminLayout({
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '16px 0' }}>
-            {[
-                { href: '/admin/dashboard', label: 'Dashboard', icon: '▦' },
-                { href: '/admin/submissions', label: 'Submissions', icon: '📋' },
-                { href: '/admin/appointments', label: 'Appointments', icon: '📅' },
-                { href: '/admin/documents', label: 'Documents', icon: '📁' },
-                { href: '/admin/payments', label: 'Payments', icon: '💳' },
-                ].map((item) => (
-                <a
-                    key={item.href}
-                    href={item.href}
-                    style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '10px 24px',
-                    color: '#8a9bb0',
-                    textDecoration: 'none',
-                    fontSize: '14px',
-                    transition: 'color 0.15s',
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = 'white')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = '#8a9bb0')}
-                >
-                    <span style={{ fontSize: '14px' }}>{item.icon}</span>
-                    {item.label}
-                </a>
-                ))}
+          <a href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
+            <span>▦</span><span>Dashboard</span>
+          </a>
+          <a href="/admin/submissions" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
+            <span>📋</span><span>Submissions</span>
+          </a>
+          <a href="/admin/appointments" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
+            <span>📅</span><span>Appointments</span>
+          </a>
+          <a href="/admin/documents" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
+            <span>📁</span><span>Documents</span>
+          </a>
+          <a href="/admin/payments" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
+            <span>💳</span><span>Payments</span>
+          </a>
         </nav>
 
         {/* Logout */}

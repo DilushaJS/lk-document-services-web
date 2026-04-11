@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
+import { DownloadButton } from '@/components/admin/DownloadButton'
 import { notFound } from 'next/navigation'
+import DeleteButton from '@/app/admin/submissions/[id]/DeleteButton'
 
 export const revalidate = 0
 
@@ -17,14 +19,15 @@ const SERVICE_LABELS: Record<string, string> = {
 export default async function SubmissionDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const supabase = createAdminClient()
 
   const { data: submission } = await supabase
     .from('submissions')
     .select('*, clients(*)')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!submission) notFound()
@@ -32,18 +35,18 @@ export default async function SubmissionDetailPage({
   const { data: documents } = await supabase
     .from('documents')
     .select('*')
-    .eq('submission_id', params.id)
+    .eq('submission_id', id)
 
   const { data: payment } = await supabase
     .from('payments')
     .select('*')
-    .eq('submission_id', params.id)
+    .eq('submission_id', id)
     .single()
 
   const { data: appointment } = await supabase
     .from('appointments')
     .select('*')
-    .eq('submission_id', params.id)
+    .eq('submission_id', id)
     .single()
 
   const client = submission.clients as any
@@ -56,12 +59,17 @@ export default async function SubmissionDetailPage({
         <a href="/admin/submissions" style={{ fontSize: '13px', color: '#8a9bb0', textDecoration: 'none' }}>
           {'← Back to submissions'}
         </a>
-        <h1 style={{ fontFamily: 'serif', fontSize: '28px', marginTop: '12px', marginBottom: '4px' }}>
-          {SERVICE_LABELS[submission.service_type] ?? submission.service_type}
-        </h1>
-        <p style={{ color: '#8a9bb0', fontSize: '13px' }}>
-          Submitted {formatDateTime(submission.submitted_at)} · ID: {submission.id}
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '12px' }}>
+          <div>
+            <h1 style={{ fontFamily: 'serif', fontSize: '28px', marginBottom: '4px' }}>
+              {SERVICE_LABELS[submission.service_type] ?? submission.service_type}
+            </h1>
+            <p style={{ color: '#8a9bb0', fontSize: '13px' }}>
+              Submitted {formatDateTime(submission.submitted_at)} · ID: {submission.id}
+            </p>
+          </div>
+          <DeleteButton submissionId={submission.id} />
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -169,13 +177,5 @@ function Field({ label, value }: { label: string; value: string }) {
         {value || '—'}
       </div>
     </div>
-  )
-}
-
-function DownloadButton({ fileKey }: { fileKey: string }) {
-  return (
-    <span style={{ fontSize: '12px', color: '#8a9bb0' }}>
-      {fileKey ? 'Available' : '—'}
-    </span>
   )
 }

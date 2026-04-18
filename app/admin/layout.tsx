@@ -1,4 +1,6 @@
 import { adminLogout } from '@/app/admin-login/action'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default function AdminLayout({
   children,
@@ -6,71 +8,59 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f0e8' }}>
+    <div className="flex min-h-screen bg-slate-50">
 
       {/* Sidebar */}
-      <aside style={{
-        width: '240px',
-        background: '#0d1b2a',
-        color: 'white',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '0',
-        flexShrink: 0,
-      }}>
+      <aside className="w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 border-r">
         {/* Logo */}
-        <div style={{ padding: '28px 24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontFamily: 'serif', fontSize: '16px', color: '#f5f0e8' }}>
+        <div className="px-6 py-7 border-b border-slate-700">
+          <div className="text-base font-semibold text-slate-50">
             LK Document Services
           </div>
-          <div style={{ fontSize: '11px', color: '#8a9bb0', marginTop: '4px', letterSpacing: '0.1em' }}>
-            ADMIN PANEL
+          <div className="text-xs text-slate-400 mt-1 tracking-wide uppercase">
+            Admin Panel
           </div>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '16px 0' }}>
-          <a href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
-            <span>▦</span><span>Dashboard</span>
-          </a>
-          <a href="/admin/submissions" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
-            <span>📋</span><span>Submissions</span>
-          </a>
-          <a href="/admin/appointments" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
-            <span>📅</span><span>Appointments</span>
-          </a>
-          <a href="/admin/documents" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
-            <span>📁</span><span>Documents</span>
-          </a>
-          <a href="/admin/payments" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px', color: '#8a9bb0', textDecoration: 'none', fontSize: '14px' }}>
-            <span>💳</span><span>Payments</span>
-          </a>
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          <NavLink href="/admin/dashboard" label="Dashboard" icon="▦" />
+          <NavLink href="/admin/submissions" label="Submissions" icon="📋" />
+          <NavLink href="/admin/appointments" label="Appointments" icon="📅" />
+          <NavLink href="/admin/documents" label="Documents" icon="📁" />
+          <NavLink href="/admin/payments" label="Payments" icon="💳" />
         </nav>
 
         {/* Logout */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="px-6 py-4 border-t border-slate-700">
           <form action={adminLogout}>
-            <button
+            <Button
               type="submit"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#8a9bb0',
-                cursor: 'pointer',
-                fontSize: '14px',
-                padding: 0,
-              }}
+              variant="ghost"
+              className="w-full justify-start h-auto py-2 px-3 text-sm text-slate-300 hover:text-white hover:bg-slate-800"
             >
               Sign out
-            </button>
+            </Button>
           </form>
         </div>
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+      <main className="flex-1 overflow-y-auto p-10">
         {children}
       </main>
     </div>
+  )
+}
+
+function NavLink({ href, label, icon }: { href: string; label: string; icon: string }) {
+  return (
+    <Link 
+      href={href}
+      className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 rounded-md hover:bg-slate-800 hover:text-white transition-colors"
+    >
+      <span>{icon}</span>
+      <span>{label}</span>
+    </Link>
   )
 }

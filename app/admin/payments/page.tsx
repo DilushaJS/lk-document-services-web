@@ -1,114 +1,254 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
+import SearchInput from '@/components/admin/SearchInput'
+import SortFilterBar from '@/components/admin/SortFilterBar'
+import Link from 'next/link'
 
 export const revalidate = 0
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:  '#fdebd0',
-  paid:     '#d5f5e3',
-  failed:   '#fde8e6',
-  refunded: '#d4e6f5',
+const ITEMS_PER_PAGE = 10
+
+const STATUS_BADGE_CONFIG: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  pending: { variant: 'outline' },
+  paid: { variant: 'default' },
+  failed: { variant: 'destructive' },
+  refunded: { variant: 'secondary' },
 }
 
-const STATUS_TEXT: Record<string, string> = {
-  pending:  '#a0620a',
-  paid:     '#1e8449',
-  failed:   '#922b21',
-  refunded: '#1a5276',
+function filterAndSortPayments(data: any[], searchTerm: string, sort: string, filters: string[]): any[] {
+  let result = data
+
+  // Apply search filter
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase()
+    result = result.filter((payment) => {
+      const clientName = `${payment.clients?.first_name || ''} ${payment.clients?.last_name || ''}`.toLowerCase()
+      const email = (payment.clients?.email || '').toLowerCase()
+      const status = (payment.status || '').toLowerCase()
+      return clientName.includes(term) || email.includes(term) || status.includes(term)
+    })
+  }
+
+  // Apply status filter
+  if (filters.length > 0) {
+    result = result.filter((payment) => {
+      return filters.some((filter) => {
+        const [category, value] = filter.split(':')
+        if (category === 'status') return payment.status === value
+        return false
+      })
+    })
+  }
+
+  // Apply sorting
+  if (sort === 'amount-high') {
+    result.sort((a, b) => Number(b.amount) - Number(a.amount))
+  } else if (sort === 'amount-low') {
+    result.sort((a, b) => Number(a.amount) - Number(b.amount))
+  } else if (sort === 'date-newest') {
+    result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  } else if (sort === 'date-oldest') {
+    result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  } else if (sort === 'name-asc') {
+    result.sort((a, b) => {
+      const nameA = `${a.clients?.first_name} ${a.clients?.last_name}`
+      const nameB = `${b.clients?.first_name} ${b.clients?.last_name}`
+      return nameA.localeCompare(nameB)
+    })
+  } else if (sort === 'name-desc') {
+    result.sort((a, b) => {
+      const nameA = `${a.clients?.first_name} ${a.clients?.last_name}`
+      const nameB = `${b.clients?.first_name} ${b.clients?.last_name}`
+      return nameB.localeCompare(nameA)
+    })
+  }
+
+  return result
 }
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; search?: string; sort?: string; filter?: string | string[] }>
+}) {
+  const params = await searchParams
+  const page = Math.max(1, parseInt(params.page || '1'))
+  const search = params.search || ''
+  const sort = params.sort || 'date-newest'
+  const filterArray = Array.isArray(params.filter) ? params.filter : params.filter ? [params.filter] : []
+  const offset = (page - 1) * ITEMS_PER_PAGE
+
   const supabase = createAdminClient()
-  const { data: payments } = await supabase
+
+  // Get all data
+  const { data: allPayments } = await supabase
     .from('payments')
     .select('*, clients(first_name, last_name, email)')
-    .order('created_at', { ascending: false })
 
-  const total = (payments ?? [])
+  // Filter and sort data
+  const processedPayments = filterAndSortPayments(allPayments || [], search, sort, filterArray)
+  const totalCount = processedPayments.length
+
+  // Paginate filtered data
+  const payments = processedPayments.slice(offset, offset + ITEMS_PER_PAGE)
+
+  const totalPages = Math.ceil((totalCount || 0) / ITEMS_PER_PAGE)
+
+  // Calculate total collected from all filtered payments
+  const total = processedPayments
     .filter((p: any) => p.status === 'paid')
     .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
 
+  const buildPaginationUrl = (pageNum: number) => {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (sort) params.set('sort', sort)
+    filterArray.forEach((f) => params.append('filter', f))
+    params.set('page', pageNum.toString())
+    return `?${params.toString()}`
+  }
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <h1 style={{ fontFamily: 'serif', fontSize: '28px', marginBottom: '8px' }}>Payments</h1>
-          <p style={{ color: '#8a9bb0', fontSize: '14px' }}>All Stripe transactions.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
+          <p className="text-sm text-muted-foreground mt-2">All Stripe transactions.</p>
         </div>
-        <div style={{ background: 'white', border: '1px solid #ede6d8', borderRadius: '10px', padding: '16px 24px', textAlign: 'right' }}>
-          <div style={{ fontSize: '11px', color: '#8a9bb0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Collected</div>
-          <div style={{ fontFamily: 'serif', fontSize: '28px', color: '#1e8449', marginTop: '4px' }}>{formatCurrency(total)}</div>
-        </div>
+        <Card>
+          <CardContent className="pt-6 text-right">
+            <div className="text-sm text-muted-foreground uppercase tracking-wide">Total Collected</div>
+            <div className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(total)}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div style={{ background: 'white', borderRadius: '10px', border: '1px solid #ede6d8' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f9f7f3' }}>
-              {['Client', 'Amount', 'Provider', 'Status', 'Date', 'Submission'].map((h) => (
-                <th key={h} style={{
-                  padding: '12px 24px',
-                  textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#8a9bb0',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(payments ?? []).map((pay: any, i: number) => (
-              <tr key={pay.id} style={{ borderTop: i > 0 ? '1px solid #f0ebe0' : 'none' }}>
-                <td style={{ padding: '14px 24px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 500 }}>
-                    {pay.clients?.first_name} {pay.clients?.last_name}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#8a9bb0' }}>{pay.clients?.email}</div>
-                </td>
-                <td style={{ padding: '14px 24px', fontSize: '14px', fontWeight: 500 }}>
-                  {formatCurrency(pay.amount)}
-                </td>
-                <td style={{ padding: '14px 24px', fontSize: '14px', textTransform: 'capitalize' }}>
-                  {pay.provider}
-                </td>
-                <td style={{ padding: '14px 24px' }}>
-                  <span style={{
-                    background: STATUS_COLORS[pay.status] ?? '#eee',
-                    color: STATUS_TEXT[pay.status] ?? '#333',
-                    padding: '3px 10px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    textTransform: 'capitalize',
-                  }}>
-                    {pay.status}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 24px', fontSize: '13px', color: '#8a9bb0' }}>
-                  {formatDateTime(pay.created_at)}
-                </td>
-                <td style={{ padding: '14px 24px' }}>
-                  <a
-                    href={`/admin/submissions/${pay.submission_id}`}
-                    style={{ fontSize: '13px', color: '#0d1b2a', fontWeight: 500 }}
-                  >
-                    {'View →'}
-                  </a>
-                </td>
-              </tr>
-            ))}
-            {(payments ?? []).length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#8a9bb0', fontSize: '14px' }}>
-                  No payments yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+        <SearchInput />
+        <SortFilterBar
+          sortOptions={[
+            { label: 'Newest First', value: 'date-newest' },
+            { label: 'Oldest First', value: 'date-oldest' },
+            { label: 'Amount (High to Low)', value: 'amount-high' },
+            { label: 'Amount (Low to High)', value: 'amount-low' },
+            { label: 'Client Name (A-Z)', value: 'name-asc' },
+            { label: 'Client Name (Z-A)', value: 'name-desc' },
+          ]}
+          filterOptions={{
+            status: [
+              { label: 'Pending', value: 'pending' },
+              { label: 'Paid', value: 'paid' },
+              { label: 'Failed', value: 'failed' },
+              { label: 'Refunded', value: 'refunded' },
+            ],
+          }}
+        />
       </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Provider</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Submission</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(payments ?? []).length > 0 ? (
+                (payments ?? []).map((pay: any) => (
+                  <TableRow key={pay.id}>
+                    <TableCell>
+                      <div className="font-medium">
+                        {pay.clients?.first_name} {pay.clients?.last_name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">{pay.clients?.email}</div>
+                    </TableCell>
+                    <TableCell className="font-medium">{formatCurrency(pay.amount)}</TableCell>
+                    <TableCell className="capitalize">{pay.provider}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_BADGE_CONFIG[pay.status]?.variant || 'outline'}>
+                        {pay.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDateTime(pay.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link href={`/admin/submissions/${pay.submission_id}`} className="text-sm hover:font-medium">
+                        View →
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    {search ? 'No payments match your search.' : 'No payments yet.'}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              {page > 1 && (
+                <PaginationItem>
+                  <PaginationPrevious href={buildPaginationUrl(page - 1)} />
+                </PaginationItem>
+              )}
+
+              {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                const pageNum = i + 1
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      href={buildPaginationUrl(pageNum)}
+                      isActive={pageNum === page}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              })}
+
+              {totalPages > 5 && page < totalPages - 2 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+
+              {page < totalPages && (
+                <PaginationItem>
+                  <PaginationNext href={buildPaginationUrl(page + 1)} />
+                </PaginationItem>
+              )}
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   )
 }

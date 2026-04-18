@@ -1,10 +1,12 @@
 import { adminLogin } from './action'
 
-export default function AdminLoginPage({
+export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string; from?: string }
+  searchParams: Promise<{ error?: string; from?: string }>
 }) {
+  const params = await searchParams
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -28,7 +30,7 @@ export default function AdminLoginPage({
           Admin Dashboard
         </p>
 
-        {searchParams.error && (
+        {params.error && (
           <p style={{
             background: '#fde8e6',
             color: '#922b21',
@@ -42,7 +44,7 @@ export default function AdminLoginPage({
         )}
 
         <form action={adminLogin}>
-          <input type="hidden" name="from" value={searchParams.from || '/admin/dashboard'} />
+          <input type="hidden" name="from" value={params.from || '/admin/dashboard'} />
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px' }}>
               Password

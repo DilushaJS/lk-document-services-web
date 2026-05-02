@@ -13,6 +13,16 @@ export const revalidate = 0
 
 const ITEMS_PER_PAGE = 10
 
+async function getRecentLoginAttempts() {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('admin_login_attempts')
+    .select('*')
+    .order('attempted_at', { ascending: false })
+    .limit(10)
+  return data ?? []
+}
+
 async function getStats() {
   const supabase = createAdminClient()
 
@@ -129,7 +139,11 @@ export default async function DashboardPage({
   const sort = params.sort || 'date-newest'
   const filterArray = Array.isArray(params.filter) ? params.filter : params.filter ? [params.filter] : []
   
-  const [stats, submissions] = await Promise.all([getStats(), getRecentSubmissions(page, search, sort, filterArray)])
+  const [stats, submissions, loginAttempts] = await Promise.all([
+    getStats(),
+    getRecentSubmissions(page, search, sort, filterArray),
+    getRecentLoginAttempts(),
+  ])
   const totalPages = Math.ceil(submissions.count / ITEMS_PER_PAGE)
 
   const buildPaginationUrl = (pageNum: number) => {
@@ -333,6 +347,65 @@ export default async function DashboardPage({
           </PaginationContent>
         </Pagination>
       )}
+
+      {/* Login attempts */}
+      <div style={{ background: 'white', borderRadius: '10px', border: '1px solid #ede6d8', marginTop: '24px' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #ede6d8' }}>
+          <h2 style={{ fontFamily: 'serif', fontSize: '18px' }}>Recent Login Attempts</h2>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f9f7f3' }}>
+              {['Status', 'IP Address', 'Time', 'User Agent'].map((h) => (
+                <th key={h} style={{
+                  padding: '12px 24px',
+                  textAlign: 'left',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#8a9bb0',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loginAttempts.map((attempt: any, i: number) => (
+              <tr key={attempt.id} style={{ borderTop: i > 0 ? '1px solid #f0ebe0' : 'none' }}>
+                <td style={{ padding: '12px 24px' }}>
+                  <span style={{
+                    background: attempt.success ? '#d5f5e3' : '#fde8e6',
+                    color: attempt.success ? '#1e8449' : '#922b21',
+                    padding: '2px 8px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                  }}>
+                    {attempt.success ? 'Success' : 'Failed'}
+                  </span>
+                </td>
+                <td style={{ padding: '12px 24px', fontSize: '13px', fontFamily: 'monospace' }}>
+                  {attempt.ip_address}
+                </td>
+                <td style={{ padding: '12px 24px', fontSize: '13px', color: '#8a9bb0' }}>
+                  {formatDateTime(attempt.attempted_at)}
+                </td>
+                <td style={{ padding: '12px 24px', fontSize: '12px', color: '#8a9bb0', maxWidth: '200px',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {attempt.user_agent}
+                </td>
+              </tr>
+            ))}
+            {loginAttempts.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#8a9bb0', fontSize: '14px' }}>
+                  No login attempts recorded.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

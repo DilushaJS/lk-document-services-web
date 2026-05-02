@@ -6,6 +6,7 @@ export default async function AdminLoginPage({
   searchParams: Promise<{ error?: string; from?: string }>
 }) {
   const params = await searchParams
+  const LOCKOUT_MINUTES = 15
 
   return (
     <div style={{
@@ -30,7 +31,7 @@ export default async function AdminLoginPage({
           Admin Dashboard
         </p>
 
-        {params.error && (
+        {params.error === '1' && (
           <p style={{
             background: '#fde8e6',
             color: '#922b21',
@@ -40,6 +41,20 @@ export default async function AdminLoginPage({
             marginBottom: '20px',
           }}>
             Incorrect password. Try again.
+          </p>
+        )}
+
+        {params.error === 'locked' && (
+          <p style={{
+            background: '#fde8e6',
+            color: '#922b21',
+            padding: '12px',
+            borderRadius: '6px',
+            fontSize: '14px',
+            marginBottom: '20px',
+          }}>
+            Too many failed attempts. Access locked for {LOCKOUT_MINUTES} minutes.
+            Contact support if you need immediate access.
           </p>
         )}
 

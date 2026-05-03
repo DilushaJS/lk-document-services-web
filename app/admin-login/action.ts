@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const MAX_ATTEMPTS = 5
-const LOCKOUT_MINUTES = 1
+const LOCKOUT_MINUTES = 15
 
 export async function adminLogin(formData: FormData) {
   const password = formData.get('password') as string

@@ -1,4 +1,4 @@
-export default function Home() {
+export default function AdminLinks() {
   const services = [
     { label: "Business Formation", href: "/business-formation" },
     { label: "Immigration", href: "/immigration" },
@@ -10,7 +10,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 font-sans">
-      <main className="flex flex-1 w-full max-w-5xl mx-auto flex-col items-center py-16 px-6">
+      <div className="flex flex-1 w-full max-w-5xl mx-auto flex-col items-center py-16 px-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-white">
             LK Document Services
@@ -47,7 +47,7 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

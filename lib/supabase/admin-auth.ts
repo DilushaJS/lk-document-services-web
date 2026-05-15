@@ -4,7 +4,7 @@ import { ensureEnv, REQUIRED_SERVER_ENV } from '@/lib/utils/env'
 
 ensureEnv(REQUIRED_SERVER_ENV)
 
-export async function createClient() {
+export async function createAuthClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -25,4 +25,22 @@ export async function createClient() {
       },
     }
   )
+}
+
+export async function getAdminSession() {
+  const supabase = await createAuthClient()
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error || !session) return null
+  return session
+}
+
+export async function isAdminUser(userId: string): Promise<boolean> {
+  const { createAdminClient } = await import('./admin')
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('admin_users')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  return !!data
 }

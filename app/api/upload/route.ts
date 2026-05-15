@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createServerClient } from '@supabase/ssr'
+import { isAdminUser } from '@/lib/supabase/admin-auth'
+import { getPublicCorsHeaders, handleCorsPreFlight } from '@/lib/utils/cors'
 import { uploadFile, generateFileKey } from '@/lib/r2'
 
 const ALLOWED_MIME_TYPES = [
@@ -14,6 +17,10 @@ const ALLOWED_MIME_TYPES = [
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
+export async function OPTIONS() {
+  return handleCorsPreFlight(getPublicCorsHeaders())
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -21,28 +28,103 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     const submissionId = formData.get('submission_id') as string | null
     const clientId = formData.get('client_id') as string | null
+    const clientEmail = formData.get('client_email') as string | null
     const documentType = formData.get('document_type') as string | null
     const description = formData.get('description') as string | null
 
-    if (!file || !submissionId || !clientId) {
-      return NextResponse.json(
-        { error: 'Missing required fields: file, submission_id, client_id' },
+    if (!file || !submissionId) {
+      const response = NextResponse.json(
+        { error: 'Missing required fields: file, submission_id' },
         { status: 400 }
       )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    // Auth check: Verify user is authorized to upload
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll() {},
+        },
+      }
+    )
+
+    const { data: { session } } = await supabaseAuth.auth.getSession()
+    const adminClient = createAdminClient()
+
+    // Check if admin or if client owns the submission
+    let isAuthorized = false
+    if (session?.user) {
+      const isAdmin = await isAdminUser(session.user.id)
+      if (isAdmin) {
+        isAuthorized = true
+      } else {
+        // For authenticated clients: verify submission belongs to them by client_id
+        if (clientId) {
+          const { data: submission } = await adminClient
+            .from('submissions')
+            .select('client_id')
+            .eq('id', submissionId)
+            .single()
+
+          if (submission?.client_id === clientId) {
+            isAuthorized = true
+          }
+        }
+      }
+    } else if (clientEmail && clientId) {
+      // For unauthenticated clients: verify via client_id
+      const { data: submission } = await adminClient
+        .from('submissions')
+        .select('client_id')
+        .eq('id', submissionId)
+        .eq('client_id', clientId)
+        .single()
+
+      if (submission) {
+        isAuthorized = true
+      }
+    }
+
+    if (!isAuthorized) {
+      const response = NextResponse.json(
+        { error: 'Unauthorized: Cannot upload to this submission' },
+        { status: 403 }
+      )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
     }
 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: 'File type not allowed. Please upload PDF, JPG, PNG, or DOCX.' },
         { status: 400 }
       )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: 'File too large. Maximum size is 10MB.' },
         { status: 400 }
       )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
     }
 
     const bytes = await file.arrayBuffer()
@@ -51,9 +133,7 @@ export async function POST(request: NextRequest) {
     const fileKey = generateFileKey(submissionId, file.name)
     const fileUrl = await uploadFile(fileKey, buffer, file.type)
 
-    const supabase = createAdminClient()
-
-    const { data: document, error: documentError } = await supabase
+    const { data: document, error: documentError } = await adminClient
       .from('documents')
       .insert({
         submission_id: submissionId,
@@ -75,18 +155,26 @@ export async function POST(request: NextRequest) {
       throw documentError
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       document_id: document.id,
       file_name: file.name,
       file_url: fileUrl,
     })
+    Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+    return response
 
   } catch (error: any) {
     console.error('File upload error:', error?.message ?? error)
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: 'Upload failed. Please try again.' },
       { status: 500 }
     )
+    Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+    return response
   }
 }

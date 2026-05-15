@@ -3,6 +3,9 @@ import { stripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminNotification, sendClientConfirmation } from '@/lib/resend'
 import Stripe from 'stripe'
+import { ensureEnv, REQUIRED_STRIPE_ENV } from '@/lib/utils/env'
+
+ensureEnv(REQUIRED_STRIPE_ENV)
 
 export async function POST(request: NextRequest) {
   const body = await request.text()

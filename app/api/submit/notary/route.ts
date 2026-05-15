@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminNotification, sendClientConfirmation } from '@/lib/resend'
+import { withRateLimit } from '@/lib/utils/rate-limit'
+import { getPublicCorsHeaders } from '@/lib/utils/cors'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -32,14 +34,22 @@ const TIME_RANGE_SLOTS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit check
+    const rateLimitResponse = await withRateLimit(request)
+    if (rateLimitResponse) return rateLimitResponse
+
     const body = await request.json()
     const validated = schema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: 'Invalid form data', details: validated.error.flatten() },
         { status: 400 }
       )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
     }
 
     const data = validated.data
@@ -129,9 +139,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Notary submission error:', error)
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: 'Something went wrong. Please try again.' },
       { status: 500 }
     )
+    Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+    return response
   }
 }

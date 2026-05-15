@@ -1,12 +1,24 @@
 import { adminLogout } from '@/app/admin-login/action'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getAdminSession, isAdminUser } from '@/lib/supabase/admin-auth'
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Page-level guard: ensure there's a valid admin session
+  const session = await getAdminSession()
+  if (!session?.user) {
+    redirect('/admin-login')
+  }
+
+  const isAdmin = await isAdminUser(session.user.id)
+  if (!isAdmin) {
+    redirect('/admin-login?error=unauthorized')
+  }
   return (
     <div className="flex min-h-screen bg-slate-50">
 

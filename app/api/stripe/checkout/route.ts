@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe, PACKAGE_PRICES, PACKAGE_LABELS } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getPublicCorsHeaders, handleCorsPreFlight } from '@/lib/utils/cors'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -11,24 +12,63 @@ const schema = z.object({
   client_name: z.string().min(1),
 })
 
+export async function OPTIONS() {
+  return handleCorsPreFlight(getPublicCorsHeaders())
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const validated = schema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: 'Invalid request', details: validated.error.flatten() },
         { status: 400 }
       )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
     }
 
     const { submission_id, client_id, package: pkg, client_email, client_name } = validated.data
     const amount = PACKAGE_PRICES[pkg]
     const label = PACKAGE_LABELS[pkg]
 
+    // Verify submission exists and belongs to the client
+    const supabase = createAdminClient()
+    const { data: submission, error: submissionError } = await supabase
+      .from('submissions')
+      .select('id, client_id, status')
+      .eq('id', submission_id)
+      .single()
+
+    if (submissionError || !submission) {
+      const response = NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    // Verify client_id matches
+    if (submission.client_id !== client_id) {
+      const response = NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 403 }
+      )
+      Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     // Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
+    const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: client_email,
       line_items: [
@@ -55,23 +95,30 @@ export async function POST(request: NextRequest) {
     })
 
     // Update payment record with session ID
-    const supabase = createAdminClient()
     await supabase
       .from('payments')
-      .update({ stripe_session_id: session.id })
+      .update({ stripe_session_id: checkoutSession.id })
       .eq('submission_id', submission_id)
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      checkout_url: session.url,
-      session_id: session.id,
+      checkout_url: checkoutSession.url,
+      session_id: checkoutSession.id,
     })
+    Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+    return response
 
   } catch (error) {
     console.error('Stripe checkout error:', error)
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: 'Could not create payment session.' },
       { status: 500 }
     )
+    Object.entries(getPublicCorsHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+    return response
   }
 }
